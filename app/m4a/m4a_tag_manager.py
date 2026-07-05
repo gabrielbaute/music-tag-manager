@@ -21,12 +21,6 @@ class M4ATagManager:
         self.tag_analyzer = M4ATagAnalyzer(root_path=self.artist_root)
         self.logger = logging.getLogger(self.__class__.__name__)
 
-    def _map_album_folders(self) -> List[Path]:
-        """
-        Recolecta todas las subcarpetas que caen inmediatamente dentro del artist_root. Se interpreta de forma estricta que cada carpeta dento de la carpeta de artista corresponde a un disco de dicho artista.
-        """
-        return [album for album in self.artist_root.iterdir() if album.is_dir()]
-
     def _collect_m4a_album_files(self, album_path: Path) -> List[MP4]:
         """
         Carga en memoria todos los archivos .m4a de un álbum como objetos MP4.
@@ -44,32 +38,6 @@ class M4ATagManager:
             except Exception as e:
                 self.logger.error(f"No se pudo cargar el archivo {file.name}: {e}")
         return mp4_tracks
-        
-    def _map_artist_discography(self) -> Dict[str, List[Path]]:
-        """
-        Escanea el directorio del artista y mapea cada álbum con sus archivos.
-
-        Recorre las subcarpetas del artista, asociando el nombre de cada carpeta (álbum) con una lista ordenada de rutas (Paths) hacia sus archivos M4A.
-
-        Returns:
-            Dict[str, List[Path]]: Diccionario que asocia el nombre del álbum con la lista de rutas de sus archivos de audio.
-        """
-        discography_map: Dict[str, List[Path]] = {}
-        albums: List[Path] = self._map_album_folders()
-        
-        for album in albums:
-            album_name: str = album.name
-            
-            m4a_files: List[Path] = [
-                file for file in album.glob(f"*{Format.M4A.sufix()}")
-                if file.is_file()
-            ]
-            
-            if m4a_files:
-                m4a_files.sort()
-                discography_map[album_name] = m4a_files
-                
-        return discography_map
 
     def _clean_and_split(self, field_value: str) -> List[str]:
         """
