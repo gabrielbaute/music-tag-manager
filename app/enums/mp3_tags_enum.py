@@ -1,5 +1,6 @@
 from enum import StrEnum
-from typing import List
+from typing import List, Type, Dict
+from mutagen.id3 import TIT2, TALB, TPE1, TPE2, TCOM, TCON, TDRC
 
 
 class MP3TagEnum(StrEnum):
@@ -36,3 +37,20 @@ class MP3TagEnum(StrEnum):
             List[str]: Lista conteniendo el string del identificador.
         """
         return [self.value]
+    
+    @staticmethod
+    def get_frame(name: 'MP3TagEnum') -> Type:
+        """"""
+        _FRAME_CLASS_MAP: Dict[str, Type] = {
+            MP3TagEnum.TRACK_TITLE: TIT2,
+            MP3TagEnum.ALBUM: TALB,
+            MP3TagEnum.ARTISTS: TPE1,
+            MP3TagEnum.ALBUM_ARTISTS: TPE2,
+            MP3TagEnum.COMPOSER: TCOM,
+            MP3TagEnum.GENRES: TCON,
+            MP3TagEnum.RELEASE_DATE: TDRC,
+        }
+        try:
+            return _FRAME_CLASS_MAP.get(name)
+        except ValueError as e:
+            print(f"Frame no reconocido: {e}")
