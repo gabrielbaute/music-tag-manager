@@ -1,301 +1,157 @@
-import logging
 from pathlib import Path
+from typing import List, Optional, Tuple, Dict, Type
 from mutagen.id3 import ID3
 from mutagen.mp3 import MP3, HeaderNotFoundError
-from typing import List, Union, Optional, Tuple, Dict
 
-from app.schemas import MP3TrackTags, MP3Album
+from app.core.base_analyzer import BaseTagAnalyzer
 from app.enums import Format, ID3VersionEnum, MP3TagEnum
+from app.schemas import MP3TrackTags, MP3Album
 
-class MP3TagAnalyzer:
+class MP3TagAnalyzer(BaseTagAnalyzer[MP3Album, MP3TrackTags]):
     """
-    Analizador de metadatos para diagnóstico de archivos MP3.
-
-    Permite inspeccionar la estructura interna de los marcos ID3 para identificar fallos de indexación en Navidrome y evaluar versiones obsoletas.
+    Analizador concreto para archivos MP3 que hereda del contrato BaseTagAnalyzer.
     """
-
-    def __init__(self, root_path: Union[str, Path]) -> None:
+    @property
+    def _album_model(self) -> Type[MP3Album]:
         """
-        Constructor del Analizador.
-
-        Args:
-            root_path (Union[str, Path]): Ruta base de la biblioteca musical.
+        Retorna el modelo Pydantic para álbumes MP3.
         """
-        self.root_path = Path(root_path)
-        self.logger = logging.getLogger(self.__class__.__name__)
+        return MP3Album
 
-    def _map_album_folders(self) -> List[Path]:
+    @property
+    def supported_format(self) -> Format:
         """
-        Recolecta las subcarpetas dentro de la ruta raíz del artista.
-
-        Se interpreta bajo convención estricta que cada directorio inmediato dentro de la raíz representa un álbum independiente.
-
-        Returns:
-            List[Path]: Lista de rutas hacia los directorios de los álbumes.
+        Define que este analizador procesa exclusivamente archivos MP3.
         """
-        return [album for album in self.root_path.iterdir() if album.is_dir()]
-
-    def _map_artist_discography(self) -> Dict[str, List[Path]]:
-        """
-        Escanea el directorio raíz y mapea cada álbum con sus archivos MP3.
-
-        Recorre las subcarpetas, asociando de forma estricta el nombre de cada directorio con una lista ordenada de archivos de audio MP3 válidos.
-
-        Returns:
-            Dict[str, List[Path]]: Diccionario que asocia el nombre del álbum con las rutas físicas de sus pistas de audio.
-        """
-        discography_map: Dict[str, List[Path]] = {}
-        albums: List[Path] = self._map_album_folders()
-
-        for album in albums:
-            album_name: str = album.name
-            mp3_files: List[Path] = [
-                file for file in album.glob(f"*{Format.MP3.sufix()}")
-                if file.is_file()
-            ]
-
-            if mp3_files:
-                mp3_files.sort()
-                discography_map[album_name] = mp3_files
-
-        return discography_map
-
-    def _collect_mp3_files_in_dir(self, dir_path: Path) -> Optional[List[Path]]:
-        """
-        Recorre el directorio asignado en búsqueda de archivos MP3.
-
-        Args:
-            dir_path (Path): Directorio donde se realizará la búsqueda.
-
-        Returns:
-            Optional[List[Path]]: Lista de rutas a archivos MP3 si se encontraron, None en caso contrario.
-        """
-        try:
-            mp3_files: List[Path] = [
-                file for file in dir_path.rglob("*")
-                if file.is_file() and file.suffix.lower() == Format.MP3.sufix()
-            ]
-            return mp3_files if mp3_files else None
-        except Exception as error:
-            self.logger.error(f"Error al escanear el directorio {dir_path}: {error}")
-            return None
+        return Format.MP3
 
     def _determine_id3_version(self, audio_obj: MP3) -> ID3VersionEnum:
         """
-        Inspecciona la tupla de versión binaria expuesta por Mutagen.
+        Inspecciona la versión binaria del marco ID3 presente en el archivo.
+
+        Analiza la cabecera del objeto Mutagen para identificar si el contenedor ID3 cumple con la especificación v2.3 o v2.4. En caso de ausencia de tags o versión no especificada, retorna v2.3 como estándar de respaldo.
 
         Args:
-            audio_obj (MP3): Instancia del objeto de audio cargado.
+            audio_obj (MP3): Instancia de Mutagen MP3 con tags ya cargados.
 
         Returns:
-            ID3VersionEnum: Miembro del Enum correspondiente a la versión.
+            ID3VersionEnum: Valor del Enum correspondiente a la versión detectada.
         """
         if audio_obj.tags and hasattr(audio_obj.tags, "version"):
-            version_major: int = audio_obj.tags.version[1]
-            if version_major == 3:
-                return ID3VersionEnum.V2_3
-            if version_major == 4:
-                return ID3VersionEnum.V2_4
+            version_major = audio_obj.tags.version[1]
+            return ID3VersionEnum.V2_4 if version_major == 4 else ID3VersionEnum.V2_3
         return ID3VersionEnum.V2_3
 
     def _parse_text_frame(self, audio_obj: MP3, tag_enum: MP3TagEnum, version: ID3VersionEnum) -> Optional[List[str]]:
         """
-        Extrae y normaliza el contenido de un marco de texto de ID3.
+        Extrae, normaliza y divide el contenido de marcos de texto ID3.
+
+        Recupera el marco de texto específico mediante su identificador. Si la versión detectada es ID3v2.3, normaliza strings separados por '/' (común en artistas múltiples o géneros) para retornar una lista plana de elementos limpios.
 
         Args:
             audio_obj (MP3): Objeto con los metadatos binarios del archivo.
-            tag_enum (MP3TagEnum): Identificador de 4 letras del marco.
-            version (ID3VersionEnum): Versión detectada del contenedor ID3.
+            tag_enum (MP3TagEnum): Identificador del marco (ej. TPE1, TALB).
+            version (ID3VersionEnum): Versión del contenedor ID3 para aplicar lógica de split.
 
         Returns:
-            Optional[List[str]]: Lista normalizada de strings del marco, o None si el tag no existe.
+            Optional[List[str]]: Lista normalizada de strings, o None si el marco no existe o está vacío.
         """
         frame = audio_obj.tags.get(tag_enum.value)
         if not frame or not hasattr(frame, "text") or not frame.text:
             return None
 
-        raw_list: List[str] = [str(item) for item in frame.text]
-        
+        raw_list = [str(item) for item in frame.text]
         if version == ID3VersionEnum.V2_3 and raw_list:
-            split_list: List[str] = []
-            for item in raw_list:
-                split_list.extend([part.strip() for part in item.split("/") if part.strip()])
-            return split_list
-
+            return [part.strip() for item in raw_list for part in item.split("/") if part.strip()]
         return raw_list
 
     def _parse_numeric_tuple(self, audio_obj: MP3, tag_enum: MP3TagEnum) -> Optional[Tuple[int, int]]:
-        """
-        Procesa marcos de numeración que contienen valores indexados o totales.
+        """Procesa marcos de numeración compleja (ej. TRCK, TPOS).
+
+        Parsea strings con formato "n/total" (ej. "1/12") dentro de los marcos ID3 numéricos, convirtiéndolos en una tupla de enteros para facilitar cálculos de posición y conteo.
 
         Args:
             audio_obj (MP3): Objeto con los metadatos binarios del archivo.
-            tag_enum (MP3TagEnum): Identificador de 4 letras del marco (TRCK/TPOS).
+            tag_enum (MP3TagEnum): Identificador del marco (TRCK o TPOS).
 
         Returns:
-            Optional[Tuple[int, int]]: Tupla de dos enteros (número, total), o None si el tag no existe o no es válido.
+            Optional[Tuple[int, int]]: Tupla (índice, total). Retorna None si el parsing falla o el marco no existe.
         """
         frame = audio_obj.tags.get(tag_enum.value)
         if not frame or not hasattr(frame, "text") or not frame.text:
             return None
 
-        raw_text: str = str(frame.text[0])
-        parts: List[str] = raw_text.split("/")
-        
+        parts = str(frame.text[0]).split("/")
         try:
-            current: int = int(parts[0])
-            total: int = int(parts[1]) if len(parts) > 1 else 0
-            return current, total
+            return (int(parts[0]), int(parts[1]) if len(parts) > 1 else 0)
         except ValueError:
             return None
 
     def _get_file_tags(self, file_path: Path) -> Optional[MP3TrackTags]:
         """
-        Extrae los valores crudos de los átomos un archivo MP3.
+        Extrae los metadatos técnicos y etiquetas ID3 de un archivo MP3.
+
+        Inicializa el contenedor de audio mediante Mutagen y realiza una extracción secuencial de los marcos definidos. Gestiona errores de cabecera corrupta y normaliza valores técnicos (bitrate, sample rate) junto con la estructura de etiquetas ID3 detectada.
 
         Args:
-            file_path (Path): Ruta al archivo MP3.
+            file_path (Path): Ruta física al archivo MP3 a procesar.
 
         Returns:
-            Optional[MP3TrackTags]: Objeto Pydantic con la metadata técnica y de etiquetas del archivo, o None si el archivo no es válido.
+            Optional[MP3TrackTags]: Modelo Pydantic con la metadata normalizada, o None si el archivo es ilegible o carece de información válida.
         """
         try:
-            audio: MP3 = MP3(file_path)
-        except (HeaderNotFoundError, Exception) as error:
-            self.logger.error(f"No se pudo inicializar o leer el archivo {file_path.name}: {error}")
+            audio = MP3(file_path)
+            if audio.tags is None:
+                audio.tags = ID3()
+        except (HeaderNotFoundError, Exception) as e:
+            self.logger.error(f"Error inicializando {file_path.name}: {e}")
             return None
 
-        if audio.tags is None:
-            try:
-                audio.tags = ID3()
-            except Exception:
-                return None
-
-        id3_version: ID3VersionEnum = self._determine_id3_version(audio_obj=audio)
-
-        track_title = self._parse_text_frame(audio, MP3TagEnum.TRACK_TITLE, id3_version)
-        album = self._parse_text_frame(audio, MP3TagEnum.ALBUM, id3_version)
-        artists = self._parse_text_frame(audio, MP3TagEnum.ARTISTS, id3_version)
-        album_artists = self._parse_text_frame(audio, MP3TagEnum.ALBUM_ARTISTS, id3_version)
-        composer = self._parse_text_frame(audio, MP3TagEnum.COMPOSER, id3_version)
-        genres = self._parse_text_frame(audio, MP3TagEnum.GENRES, id3_version)
-
+        version = self._determine_id3_version(audio)
+        
         lyrics_frames = audio.tags.getall(MP3TagEnum.UNSINCED_LYRICS.value)
-        lyrics_list: Optional[List[str]] = None
-        if lyrics_frames:
-            lyrics_list = []
-            for frame in lyrics_frames:
-                if hasattr(frame, "text") and frame.text:
-                    lyrics_list.extend([str(text_item) for text_item in frame.text if text_item])
-            if not lyrics_list:
-                lyrics_list = None
-
-        raw_year = self._parse_text_frame(audio, MP3TagEnum.RELEASE_DATE, id3_version)
-        year_value: Optional[str] = raw_year[0][:4] if raw_year else None
-
-        track_number = self._parse_numeric_tuple(audio, MP3TagEnum.TRACK_NUMBER)
-        disc_number = self._parse_numeric_tuple(audio, MP3TagEnum.DISC_NUMBER)
-
-        bitrate_value: Optional[int] = None
-        if hasattr(audio.info, "bitrate") and audio.info.bitrate:
-            bitrate_value = int(audio.info.bitrate // 1000)
-
-        length_value: Optional[float] = None
-        if hasattr(audio.info, "length") and audio.info.length:
-            length_value = float(audio.info.length)
-
-        channels_value: Optional[int] = None
-        if hasattr(audio.info, "channels") and audio.info.channels:
-            channels_value = int(audio.info.channels)
-
-        sample_rate_value: Optional[int] = None
-        if hasattr(audio.info, "sample_rate") and audio.info.sample_rate:
-            sample_rate_value = int(audio.info.sample_rate)
+        lyrics = [str(t) for f in lyrics_frames if hasattr(f, "text") and f.text for t in f.text] if lyrics_frames else None
+        
+        raw_year = self._parse_text_frame(audio, MP3TagEnum.RELEASE_DATE, version)
 
         return MP3TrackTags(
             name_file=file_path.name,
-            id3_version=id3_version,
-            bitrate=bitrate_value,
-            length=length_value,
-            channels=channels_value,
-            sample_rate=sample_rate_value,
-            track_title=track_title,
-            album=album,
-            artists=artists,
-            album_artists=album_artists,
-            composer=composer,
-            year=year_value,
-            genres=genres,
-            track_number=track_number,
-            disc_number=disc_number,
-            lyrics=lyrics_list
+            id3_version=version,
+            bitrate=int(audio.info.bitrate // 1000) if audio.info.bitrate else None,
+            length=float(audio.info.length) if audio.info.length else None,
+            channels=int(audio.info.channels) if audio.info.channels else None,
+            sample_rate=int(audio.info.sample_rate) if audio.info.sample_rate else None,
+            track_title=self._parse_text_frame(audio, MP3TagEnum.TRACK_TITLE, version),
+            album=self._parse_text_frame(audio, MP3TagEnum.ALBUM, version),
+            artists=self._parse_text_frame(audio, MP3TagEnum.ARTISTS, version),
+            album_artists=self._parse_text_frame(audio, MP3TagEnum.ALBUM_ARTISTS, version),
+            composer=self._parse_text_frame(audio, MP3TagEnum.COMPOSER, version),
+            year=raw_year[0][:4] if raw_year else None,
+            genres=self._parse_text_frame(audio, MP3TagEnum.GENRES, version),
+            track_number=self._parse_numeric_tuple(audio, MP3TagEnum.TRACK_NUMBER),
+            disc_number=self._parse_numeric_tuple(audio, MP3TagEnum.DISC_NUMBER),
+            lyrics=lyrics if lyrics else None
         )
-    
-    def _analyze_album_tracks(self, mp3_files: List[Path]) -> List[MP3TrackTags]:
-        """
-        Procesa un lote de rutas de archivos MP3 para extraer sus metadatos.
-
-        Itera sobre las rutas provistas, invoca de forma segura la extracción de átomos y consolida los objetos de diagnóstico individuales válidos.
-
-        Args:
-            mp3_files (List[Path]): Lista de rutas físicas a los archivos MP3.
-
-        Returns:
-            List[MP3TrackTags]: Lista de objetos Pydantic con la metadata de cada canción analizada.
-        """
-        track_reports: List[MP3TrackTags] = []
-        
-        for file_path in mp3_files:
-            track_tags: Optional[MP3TrackTags] = self._get_file_tags(file_path=file_path)
-            if track_tags:
-                track_reports.append(track_tags)
-                
-        return track_reports
 
     def analyze_album(self, album_path: Path) -> MP3Album:
         """
-        Realiza el diagnóstico agregado de un álbum compuesto por archivos MP3.
+        Consolida las métricas técnicas y de metadatos para un álbum MP3.
 
-        Escanea el directorio especificado, consolida las métricas técnicas, las versiones de los marcos ID3 presentes y unifica los vectores de metadatos para identificar discrepancias visuales o de indexación.
+        Orquesta el ciclo de vida de análisis de un álbum: recolecta archivos, extrae tags individuales, y agrega los valores (versiones ID3, artistas, géneros) en un reporte global tipo `MP3Album`.
 
         Args:
-            album_path (Path): Ruta del directorio del álbum a analizar.
+            album_path (Path): Ruta del directorio físico del álbum.
 
         Returns:
-            MP3Album: Objeto de diagnóstico global del estado del álbum.
+            MP3Album: Modelo Pydantic consolidado con la lista de tracks y metadatos agregados del álbum completo.
         """
-        self.logger.info(f"Iniciando análisis del álbum en: {album_path.name}")
+        file_paths = self._collect_files_in_dir(album_path)
+        tracks = [data for p in file_paths if (data := self._get_file_tags(p))]
         
-        mp3_files: Optional[List[Path]] = self._collect_mp3_files_in_dir(dir_path=album_path)
-        
-        if not mp3_files:
-            return MP3Album(total_tracks=0, total_tracks_no_mp3=0, tracks=[])
-
-        tracks: List[MP3TrackTags] = self._analyze_album_tracks(mp3_files=mp3_files)
-        
-        id3_versions: List[ID3VersionEnum] = []
-        album_names: List[str] = []
-        artists: List[str] = []
-        album_artists: List[str] = []
-
-        for track in tracks:
-            if track.id3_version not in id3_versions:
-                id3_versions.append(track.id3_version)
-            
-            if track.album:
-                for name in track.album:
-                    if name not in album_names:
-                        album_names.append(name)
-                        
-            if track.artists:
-                for artist in track.artists:
-                    if artist not in artists:
-                        artists.append(artist)
-                        
-            if track.album_artists:
-                for album_artist in track.album_artists:
-                    if album_artist not in album_artists:
-                        album_artists.append(album_artist)
+        id3_versions = list({t.id3_version for t in tracks})
+        album_names = list({name for t in tracks if t.album for name in t.album})
+        artists = list({art for t in tracks if t.artists for art in t.artists})
+        album_artists = list({aa for t in tracks if t.album_artists for aa in t.album_artists})
 
         return MP3Album(
             total_tracks=len(tracks),
@@ -306,28 +162,13 @@ class MP3TagAnalyzer:
             album_artists=album_artists,
             tracks=tracks
         )
-    
-    def run_diagnostic(self) -> Dict[str, MP3Album]:
-        """
-        Ejecuta un diagnóstico exhaustivo de la discografía del artista.
 
-        Mapea de forma recursiva los subdirectorios del artista, procesando la
-        colección completa de pistas MP3 para estructurar un reporte analítico
-        detallado por cada álbum presente.
+    def run_diagnostic(self) -> Dict[str, MP3Album]:
+        """Ejecuta un diagnóstico completo y recursivo de la discografía MP3.
+
+        Orquesta el escaneo del directorio raíz del artista, delegando el análisis de cada subdirectorio a `analyze_album`. Consolida los reportes de cada álbum en un diccionario único, filtrando aquellas rutas que no contienen archivos de audio MP3 válidos.
 
         Returns:
-            Dict[str, MP3Album]: Diccionario estructurado indexado por el 
-                nombre del álbum, cuyo valor contiene el desglose total de tags.
+            Dict[str, MP3Album]: Diccionario donde la clave es el nombre del álbum y el valor es el objeto `MP3Album` con los resultados del análisis masivo.
         """
-        self.logger.info(f"Iniciando diagnóstico masivo en: {self.root_path.name}")
-        diagnostic_report: Dict[str, MP3Album] = {}
-        albums: List[Path] = self._map_album_folders()
-
-        for album_path in albums:
-            album_name: str = album_path.name
-            album_report: MP3Album = self.analyze_album(album_path=album_path)
-            
-            if album_report.total_tracks > 0:
-                diagnostic_report[album_name] = album_report
-        
-        return diagnostic_report
+        return super().run_diagnostic()
