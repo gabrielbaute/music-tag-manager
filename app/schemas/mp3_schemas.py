@@ -10,10 +10,10 @@ class MP3TrackTags(BaseModel):
     """
     name_file: str
     id3_version: ID3VersionEnum
-    bitrate: int
-    length: float
-    channels: int
-    sample_rate: int
+    bitrate: Optional[int] = None
+    length: Optional[float] = None
+    channels: Optional[int] = None
+    sample_rate: Optional[int] = None
     track_title: Optional[List[str]] = None
     album: Optional[List[str]] = None
     artists: Optional[List[str]] = None
