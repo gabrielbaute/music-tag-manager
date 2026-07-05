@@ -1,41 +1,25 @@
-from pydantic import BaseModel
-from typing import List, Optional, Tuple
+from typing import List
 from app.enums import ID3VersionEnum
 
-class MP3TrackTags(BaseModel):
-    """
-    Modelo de los tags de un archivo MP3 extraído mediante Mutagen ID3.
+from app.core.base_tags_schemas import BaseTrackTags, BaseAlbum
 
-    Representa la información técnica del flujo de audio y los marcos de metadatos estandarizados mapeados de forma limpia para el analizador.
+class MP3TrackTags(BaseTrackTags):
+    """Modelo de los metadatos específicos de un archivo MP3 extraído mediante Mutagen ID3.
+
+    Hereda de BaseTrackTags y añade el control de versiones necesario para 
+    la gestión de marcos ID3v2.x.
     """
-    name_file: str
     id3_version: ID3VersionEnum
-    bitrate: Optional[int] = None
-    length: Optional[float] = None
-    channels: Optional[int] = None
-    sample_rate: Optional[int] = None
-    track_title: Optional[List[str]] = None
-    album: Optional[List[str]] = None
-    artists: Optional[List[str]] = None
-    album_artists: Optional[List[str]] = None
-    composer: Optional[List[str]] = None
-    year: Optional[str] = None
-    genres: Optional[List[str]] = None
-    track_number: Optional[Tuple[int, int]] = None
-    disc_number: Optional[Tuple[int, int]] = None
-    lyrics: Optional[List[str]] = None
 
 
-class MP3Album(BaseModel):
+class MP3Album(BaseAlbum[MP3TrackTags]):
+    """Modelo de diagnóstico agregado específico para un álbum en formato MP3.
+
+    Hereda de BaseAlbum (inyectando MP3TrackTags) y añade la evaluación
+    de discrepancias de versiones del estándar ID3 para el lote completo.
+
+    Attributes:
+        id3_versions_present (List[ID3VersionEnum]): Lista de las distintas versiones 
+            de ID3 detectadas en los archivos del disco (útil para detectar estados mixtos).
     """
-    Modelo de diagnóstico agregado para un álbum compuesto por archivos MP3.
-
-    Consolida las estadísticas de pistas, vectores de metadatos detectados y discrepancias estructurales para su representación en la interfaz.
-    """
-    total_tracks: int = 0
-    total_tracks_no_mp3: int = 0
     id3_versions_present: List[ID3VersionEnum] = []
-    album_names: List[str] = []
-    artists: List[str] = []
-    album_artists: List[str] = []
-    tracks: List[MP3TrackTags] = []
