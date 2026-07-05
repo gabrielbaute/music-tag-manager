@@ -1,14 +1,15 @@
 import logging
 from pathlib import Path
 from mutagen.mp4 import MP4
-from typing import List, Union, Optional, Dict, Tuple
+from typing import List, Union, Optional, Tuple
 
 from app.schemas import M4AAlbum
 from app.enums import Format, M4ATagEnum
 from app.m4a.m4a_tag_analyzer import M4ATagAnalyzer
 
 class M4ATagManager:
-    """Clase encargada de la edición y sanitización de metadatos en archivos M4A.
+    """
+    Clase encargada de la edición y sanitización de metadatos en archivos M4A.
 
     Permite corregir problemas comunes de indexación mediante operaciones por lotes a nivel de directorios de álbumes.
     """
@@ -32,7 +33,7 @@ class M4ATagManager:
             List[MP4]: Lista de instancias de Mutagen MP4 cargadas.
         """
         mp4_tracks: List[MP4] = []
-        for file in album_path.glob(f"*{Format.M4A.sufix()}"):
+        for file in album_path.glob(f"*{Format.M4A.suffix()}"):
             try:
                 mp4_tracks.append(MP4(file))
             except Exception as e:
@@ -120,7 +121,7 @@ class M4ATagManager:
             wrapped_value: List[str] = [new_tag_value] if isinstance(new_tag_value, str) else new_tag_value
             
             track_object[m4a_tag.value] = wrapped_value
-            self.logger.info(f"Aplicando sobreescritura {m4a_tag.value}: [{';'.join(wrapped_value)}] en {track_object.filename}")
+            self.logger.info(f"Aplicando sobreescritura {m4a_tag}: [{';'.join(wrapped_value)}] en {track_object.filename}")
             
             track_object.save()
             
@@ -129,9 +130,9 @@ class M4ATagManager:
             self.logger.error(f"Error al sobreescribir en M4A [{track_object.filename}]: {e}")
             return None
         
-    def swap_artist_album_with_artists(self, track: MP4) -> Optional[Tuple[List[str], List[str]]]:
+    def _swap_artist_album_with_artists_on_track(self, track: MP4) -> Optional[Tuple[List[str], List[str]]]:
         """
-        ntercambia los metadatos de Album Artist y Track Artists en un archivo MP4.
+        Intercambia los metadatos de Album Artist y Track Artists en un archivo MP4.
 
         Extrae los valores de ambos átomos, los sanitiza mediante descompresión de delimitadores, e intercambia sus posiciones. Asegura que el artista del álbum resultante contenga un único elemento para preservar la indexación homogénea en Navidrome.
 
@@ -178,7 +179,21 @@ class M4ATagManager:
         except Exception as error:
             self.logger.error(f"Fallo crítico en intercambio de tags para {track.filename}: {error}")
             return None
-        
+
+    def swap_artist_album_with_artists(self, album_path: Path) -> M4AAlbum:
+        """
+        Arregla el problema de los datos intercambiados entre campos de Artists y Album Artists para un album completo.
+        """
+        track_objs: List[MP4] = self._collect_m4a_album_files(album_path=album_path)
+        count: int = 0
+        for track in track_objs:
+            new_data = self._swap_artist_album_with_artists_on_track(track=track)
+            if new_data:
+                count = count + 1
+    
+        self.logger.info(f"Artist Album y Artists actualizados en {count}/{len(track_objs)} archivos.")
+        return self.tag_analyzer.analyze_album(album_path=album_path)
+    
     def set_album_artist_to_an_album(
             self,
             artist_name: str,
@@ -197,7 +212,7 @@ class M4ATagManager:
         track_objs: List[MP4] = self._collect_m4a_album_files(album_path=album_path)
         count: int = 0
         for track in track_objs:
-            edit: bool = self._edit_m4a_track_tag(track, M4ATagEnum.ALBUM_ARTISTS, [artist_name])
+            edit: bool = self._overwrite_m4a_track_tag(track, M4ATagEnum.ALBUM_ARTISTS, [artist_name])
             if edit:
                 count = count + 1
         self.logger.info(f"Artist Album actualizado en {count}/{len(track_objs)} archivos.")
@@ -247,7 +262,7 @@ class M4ATagManager:
         count: int = 0
         
         for track in track_objs:
-            edit: bool = self._edit_m4a_track_tag(track, M4ATagEnum.GENRES, genres)
+            edit: bool = self._overwrite_m4a_track_tag(track, M4ATagEnum.GENRES, genres)
             if edit:
                 count += 1
                 
