@@ -17,6 +17,7 @@ class MP3TagEnum(StrEnum):
     TRACK_NUMBER = "TRCK"
     DISC_NUMBER = "TPOS"
     RELEASE_DATE = "TDRC"
+    UNSINCED_LYRICS = "USLT"
 
     def __str__(self) -> str:
         """
