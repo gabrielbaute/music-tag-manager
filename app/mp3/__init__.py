@@ -1,0 +1,1 @@
+from app.mp3.mp3_tag_analyzer import MP3TagAnalyzer
