@@ -28,7 +28,7 @@ class Format(StrEnum):
     def to_list(self) -> List[str]:
         return [self.value]
     
-    def sufix(self) -> str:
+    def suffix(self) -> str:
         """
         Retorna el valor del enum para ser usado como formato de archivo.
 
@@ -52,4 +52,10 @@ class Format(StrEnum):
     
     @staticmethod
     def to_enum_list() -> List['Format']:
-        pass
+        """
+        Retorna una lista con todos los miembros del Enum Format.
+
+        Returns:
+            List[Format]: Lista completa de los formatos soportados.
+        """
+        return list(Format)
