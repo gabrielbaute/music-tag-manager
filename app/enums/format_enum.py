@@ -41,7 +41,7 @@ class Format(StrEnum):
     def map_formats(format: str) -> 'Format':
         formats = {
             "m4a": Format.M4A,
-            "mpr": Format.MP3,
+            "mp3": Format.MP3,
             "flac": Format.FLAC,
             "wav": Format.WAV,
             "ogg": Format.OGG,
