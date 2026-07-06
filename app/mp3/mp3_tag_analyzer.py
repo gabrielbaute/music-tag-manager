@@ -3,7 +3,7 @@ from typing import List, Optional, Tuple, Dict, Type
 from mutagen.id3 import ID3
 from mutagen.mp3 import MP3, HeaderNotFoundError
 
-from app.core.base_analyzer import BaseTagAnalyzer
+from app.core.base_analyzer import BaseTagAnalyzer, ProgressCallback
 from app.enums import Format, ID3VersionEnum, MP3TagEnum
 from app.schemas import MP3TrackTags, MP3Album
 
@@ -163,12 +163,15 @@ class MP3TagAnalyzer(BaseTagAnalyzer[MP3Album, MP3TrackTags]):
             tracks=tracks
         )
 
-    def run_diagnostic(self) -> Dict[str, MP3Album]:
+    def run_diagnostic(self, progress_callback: Optional[ProgressCallback] = None) -> Dict[str, MP3Album]:
         """Ejecuta un diagnóstico completo y recursivo de la discografía MP3.
 
         Orquesta el escaneo del directorio raíz del artista, delegando el análisis de cada subdirectorio a `analyze_album`. Consolida los reportes de cada álbum en un diccionario único, filtrando aquellas rutas que no contienen archivos de audio MP3 válidos.
 
+        Args:
+            progress_callback (Optional[ProgressCallback]): Callback opcional para reportar progreso.
+
         Returns:
             Dict[str, MP3Album]: Diccionario donde la clave es el nombre del álbum y el valor es el objeto `MP3Album` con los resultados del análisis masivo.
         """
-        return super().run_diagnostic()
+        return super().run_diagnostic(progress_callback=progress_callback)

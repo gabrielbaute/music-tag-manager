@@ -3,7 +3,7 @@ from typing import Type, Optional, Dict
 from mutagen.mp4 import MP4, MP4MetadataError
 
 from app.enums import Format
-from app.core.base_analyzer import BaseTagAnalyzer
+from app.core.base_analyzer import BaseTagAnalyzer, ProgressCallback
 from app.schemas.m4a_schemas import M4ATrackTags, M4AAlbum
 
 class M4ATagAnalyzer(BaseTagAnalyzer[M4AAlbum, M4ATrackTags]):
@@ -88,13 +88,16 @@ class M4ATagAnalyzer(BaseTagAnalyzer[M4AAlbum, M4ATrackTags]):
             tracks=tracks
         )
 
-    def run_diagnostic(self) -> Dict[str, M4AAlbum]:
+    def run_diagnostic(self, progress_callback: Optional[ProgressCallback] = None) -> Dict[str, M4AAlbum]:
         """
         Ejecuta un diagnóstico exhaustivo de la discografía del artista (M4A).
 
         Mapea de forma secuencial los subdirectorios del artista, procesando la colección completa de pistas M4A para estructurar un reporte analítico detallado por cada álbum presente, bajo la validación del esquema Pydantic.
 
+        Args:
+            progress_callback (Optional[ProgressCallback]): Callback opcional para reportar progreso.
+
         Returns:
             Dict[str, M4AAlbum]: Diccionario estructurado indexado por el nombre del álbum, cuyo valor contiene el desglose total de tags M4A.
         """
-        return super().run_diagnostic()
+        return super().run_diagnostic(progress_callback=progress_callback)
