@@ -18,7 +18,7 @@ class M4ATagEnum(StrEnum):
     TRACK_NUMBER ='trkn'
     DISC_NUMBER ='disk'
     LYRICS ='\xa9lyr'
-    RELEASE_DATE='\xa9day'
+    YEAR='\xa9day'
 
     def __str__(self):
         return self.value
