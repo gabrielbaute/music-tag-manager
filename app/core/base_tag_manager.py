@@ -15,7 +15,6 @@ T_TrackObj = TypeVar('T_TrackObj')
 T_TagEnum = TypeVar('T_TagEnum', bound=StrEnum)
 T_Album = TypeVar('T_Album', bound=BaseAlbum)
 
-# Callback for edit progress: receives (track_filename, status, detail_message)
 EditProgressCallback = Callable[[str, EditStatus, str], None]
 
 
@@ -23,10 +22,7 @@ class BaseTagManager(ABC, Generic[T_TrackObj, T_TagEnum, T_Album]):
     """
     Clase base abstracta para la edición y sanitización de metadatos de audio.
 
-    Define el contrato y la orquestación necesaria para operaciones por lotes
-    a nivel de directorios de álbumes, independientemente del códec.
-    Las subclases deben implementar la lógica específica de acceso binario
-    para cada formato de archivo.
+    Define el contrato y la orquestación necesaria para operaciones por lotes a nivel de directorios de álbumes, independientemente del códec. Las subclases deben implementar la lógica específica de acceso binario para cada formato de archivo.
 
     Attributes:
         artist_root (Path): Ruta base de la discografía de un artista.
@@ -39,7 +35,6 @@ class BaseTagManager(ABC, Generic[T_TrackObj, T_TagEnum, T_Album]):
         self._analyzer = self._create_analyzer()
 
     # ── Format-specific abstract interface ──
-
     @property
     @abstractmethod
     def _tag_enum(self) -> Type[T_TagEnum]:
@@ -137,7 +132,6 @@ class BaseTagManager(ABC, Generic[T_TrackObj, T_TagEnum, T_Album]):
         pass
 
     # ── Shared concrete logic ──
-
     def _clean_and_split(self, field_value: str) -> List[str]:
         """
         Sanitiza cadenas separando colaboradores por delimitadores comunes.
@@ -278,12 +272,10 @@ class BaseTagManager(ABC, Generic[T_TrackObj, T_TagEnum, T_Album]):
         Args:
             artist_name (str): Nombre a asignar a los tracks del álbum.
             album_path (Path): Path del álbum para cargar los tracks y editarlos.
-            progress_callback (Optional[EditProgressCallback]): Callback opcional
-                que recibe (nombre_archivo, estado, mensaje) por cada track procesado.
+            progress_callback (Optional[EditProgressCallback]): Callback opcional que recibe (nombre_archivo, estado, mensaje) por cada track procesado.
 
         Returns:
-            Tuple[T_Album, List[EditResult]]: Reporte del álbum y lista de resultados
-                individuales por cada track editado.
+            Tuple[T_Album, List[EditResult]]: Reporte del álbum y lista de resultados individuales por cada track editado.
         """
         track_objs: List[T_TrackObj] = self._collect_album_files(album_path=album_path)
         edit_results: List[EditResult] = []
@@ -334,12 +326,10 @@ class BaseTagManager(ABC, Generic[T_TrackObj, T_TagEnum, T_Album]):
 
         Args:
             album_path (Path): Path del álbum a procesar.
-            progress_callback (Optional[EditProgressCallback]): Callback opcional
-                que recibe (nombre_archivo, estado, mensaje) por cada track procesado.
+            progress_callback (Optional[EditProgressCallback]): Callback opcional que recibe (nombre_archivo, estado, mensaje) por cada track procesado.
 
         Returns:
-            Tuple[T_Album, List[EditResult]]: Reporte del álbum y lista de resultados
-                individuales por cada track procesado.
+            Tuple[T_Album, List[EditResult]]: Reporte del álbum y lista de resultados individuales por cada track procesado.
         """
         track_objs: List[T_TrackObj] = self._collect_album_files(album_path=album_path)
         edit_results: List[EditResult] = []
@@ -478,20 +468,16 @@ class BaseTagManager(ABC, Generic[T_TrackObj, T_TagEnum, T_Album]):
         """
         Aplica un valor unificado a un tag específico en todas las pistas de un álbum.
 
-        Permite realizar correcciones masivas y homogéneas sobre metadatos comunes
-        a nivel de directorio (como el año, compositor o título del disco),
-        sobrescribiendo el contenido previo.
+        Permite realizar correcciones masivas y homogéneas sobre metadatos comunes a nivel de directorio (como el año, compositor o título del disco), sobrescribiendo el contenido previo.
 
         Args:
             album_path (Path): Ruta del directorio del álbum a procesar.
             field (T_TagEnum): El tag que se va a corregir de forma genérica.
             new_value (List[str]): El nuevo vector de strings que se inyectará en el tag.
-            progress_callback (Optional[EditProgressCallback]): Callback opcional
-                que recibe (nombre_archivo, estado, mensaje) por cada track procesado.
+            progress_callback (Optional[EditProgressCallback]): Callback opcional que recibe (nombre_archivo, estado, mensaje) por cada track procesado.
 
         Returns:
-            Tuple[T_Album, List[EditResult]]: Reporte del álbum y lista de resultados
-                individuales por cada track editado.
+            Tuple[T_Album, List[EditResult]]: Reporte del álbum y lista de resultados individuales por cada track editado.
         """
         track_objs: List[T_TrackObj] = self._collect_album_files(album_path=album_path)
         edit_results: List[EditResult] = []
