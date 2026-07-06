@@ -160,17 +160,13 @@ class BaseTagManager(ABC, Generic[T_TrackObj, T_TagEnum, T_Album]):
         """
         Intercambia los metadatos de Album Artist y Track Artists en un archivo.
 
-        Extrae los valores de ambos tags, los sanitiza mediante descompresión
-        de delimitadores, e intercambia sus posiciones. Asegura que el artista
-        del álbum resultante contenga un único elemento para preservar la
-        indexación homogénea en Navidrome.
+        Extrae los valores de ambos tags, los sanitiza mediante descompresión de delimitadores, e intercambia sus posiciones. Asegura que el artista del álbum resultante contenga un único elemento para preservar la indexación homogénea en Navidrome.
 
         Args:
             track (T_TrackObj): Track en forma de un objeto Mutagen.
 
         Returns:
-            Optional[Tuple[List[str], List[str]]]: Tupla con las dos listas de los
-                nuevos valores asignados (Artists, Album Artists), o None si falla.
+            Optional[Tuple[List[str], List[str]]]: Tupla con las dos listas de los nuevos valores asignados (Artists, Album Artists), o None si falla.
         """
         tag_enum = self._tag_enum
         artists_values = self._read_track_tag(track, tag_enum.ARTISTS)
@@ -215,8 +211,7 @@ class BaseTagManager(ABC, Generic[T_TrackObj, T_TagEnum, T_Album]):
 
     def swap_artist_album_with_artists(self, album_path: Path) -> T_Album:
         """
-        Arregla el problema de los datos intercambiados entre campos de Artists
-        y Album Artists para un album completo.
+        Arregla el problema de los datos intercambiados entre campos de Artists y Album Artists para un album completo.
 
         Args:
             album_path (Path): Ruta del directorio del álbum.
@@ -302,13 +297,14 @@ class BaseTagManager(ABC, Generic[T_TrackObj, T_TagEnum, T_Album]):
         )
         return self.tag_analyzer.analyze_album(album_path=album_path)
 
-    def set_genre_to_album(self, album_path: Path, genres: List[str]) -> T_Album:
+    def set_genre_to_album(self, album_path: Path, genres: List[str], replace: bool = True) -> T_Album:
         """
         Aplica un género o una lista de géneros uniformemente a un álbum.
 
         Args:
             album_path (Path): Path del álbum para editar.
             genres (List[str]): Lista de géneros musicales a establecer.
+            replace (bool): Si True (default), sobrescribe los géneros existentes usando `_overwrite_track_tag`. Si False, añade los géneros a los ya existentes usando `_edit_track_tag`.
 
         Returns:
             T_Album: Reporte actualizado del análisis del álbum.
@@ -317,14 +313,20 @@ class BaseTagManager(ABC, Generic[T_TrackObj, T_TagEnum, T_Album]):
         count: int = 0
 
         for track in track_objs:
-            edit: bool = self._overwrite_track_tag(
-                track, self._tag_enum.GENRES, genres
-            )
+            if replace:
+                edit: bool = self._overwrite_track_tag(
+                    track, self._tag_enum.GENRES, genres
+                )
+            else:
+                edit: bool = self._edit_track_tag(
+                    track, self._tag_enum.GENRES, genres
+                )
             if edit:
                 count += 1
 
+        action = "sobrescritos" if replace else "añadidos"
         self.logger.info(
-            f"Género actualizado en {count}/{len(track_objs)} archivos."
+            f"Géneros {action} en {count}/{len(track_objs)} archivos."
         )
         return self.tag_analyzer.analyze_album(album_path=album_path)
 
@@ -337,9 +339,7 @@ class BaseTagManager(ABC, Generic[T_TrackObj, T_TagEnum, T_Album]):
         """
         Aplica un valor unificado a un tag específico en todas las pistas de un álbum.
 
-        Permite realizar correcciones masivas y homogéneas sobre metadatos comunes
-        a nivel de directorio (como el año, compositor o título del disco),
-        sobrescribiendo el contenido previo.
+        Permite realizar correcciones masivas y homogéneas sobre metadatos comunes a nivel de directorio (como el año, compositor o título del disco), sobrescribiendo el contenido previo.
 
         Args:
             album_path (Path): Ruta del directorio del álbum a procesar.
