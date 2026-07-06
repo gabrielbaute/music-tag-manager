@@ -24,6 +24,6 @@ def show_version(console: Console) -> None:
     table.add_row("Versión", f"[bold]{__version__}[/bold]")
     table.add_row("Author", "Gabriel Baute")
     table.add_row("License", "GPL")
-    table.add_row("Repo", "https://github.com/gabrielbaute/repo-link") #TODO: crear repositorio en github
+    table.add_row("Repo", "https://github.com/gabrielbaute/music-tag-manager")
 
     console.print(table)
