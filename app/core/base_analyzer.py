@@ -1,7 +1,7 @@
 import logging
 from pathlib import Path
 from abc import ABC, abstractmethod
-from typing import Dict, List, TypeVar, Generic, Type
+from typing import Callable, Dict, List, Optional, TypeVar, Generic, Type
 
 
 from app.enums.format_enum import Format
@@ -9,6 +9,9 @@ from app.core.base_tags_schemas import BaseAlbum, BaseTrackTags
 
 T_Album = TypeVar('T_Album', bound=BaseAlbum)
 T_Track = TypeVar('T_Track', bound=BaseTrackTags)
+
+# Callback type for progress reporting: receives (current_index, total_count, album_name)
+ProgressCallback = Callable[[int, int, str], None]
 
 class BaseTagAnalyzer(ABC, Generic[T_Album, T_Track]):
     """Clase base abstracta para el análisis de metadatos de audio.
@@ -88,21 +91,29 @@ class BaseTagAnalyzer(ABC, Generic[T_Album, T_Track]):
         """
         pass
 
-    def run_diagnostic(self) -> Dict[str, T_Album]:
+    def run_diagnostic(self, progress_callback: Optional[ProgressCallback] = None) -> Dict[str, T_Album]:
         """
         Ejecuta un diagnóstico exhaustivo de la discografía del artista.
 
         Realiza un recorrido recursivo por la estructura de directorios definida en `root_path`. Para cada subdirectorio detectado como álbum, invoca el flujo de consolidación de metadatos. Filtra automáticamente aquellos álbumes que no contienen pistas válidas tras el proceso de extracción.
+
+        Args:
+            progress_callback (Optional[ProgressCallback]): Callback opcional para reportar progreso.
+                Recibe (índice_actual, total_álbumes, nombre_del_álbum).
 
         Returns:
             Dict[str, T_Album]: Diccionario donde cada clave es el nombre de la carpeta del álbum (nombre físico del directorio) y el valor es la instancia del modelo `T_Album` con la metadata consolidada.
         """
         self.logger.info(f"Iniciando diagnóstico masivo en: {self.root_path.name}")
         report: Dict[str, T_Album] = {}
-        
-        for album_path in self._map_album_folders():
+        album_folders = self._map_album_folders()
+        total = len(album_folders)
+
+        for idx, album_path in enumerate(album_folders):
+            if progress_callback is not None:
+                progress_callback(idx, total, album_path.name)
             album_report = self.analyze_album(album_path)
             if album_report.total_tracks > 0:
                 report[album_path.name] = album_report
-        
+
         return report

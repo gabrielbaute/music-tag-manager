@@ -26,20 +26,18 @@ class BaseTrackTags(BaseModel):
 T_Track = TypeVar('T_Track', bound=BaseTrackTags)
 
 class BaseAlbum(BaseModel, Generic[T_Track]):
-    """Modelo base genérico para el diagnóstico de un álbum musical.
+    """
+    Modelo base genérico para el diagnóstico de un álbum musical.
 
-    Consolida las estadísticas estructurales y los vectores de metadatos unificados
-    de un directorio completo, abstrayendo la lógica común a todos los formatos.
+    Consolida las estadísticas estructurales y los vectores de metadatos unificados de un directorio completo, abstrayendo la lógica común a todos los formatos.
 
     Attributes:
         total_tracks (int): Cantidad total de pistas válidas procesadas.
-        invalid_format_tracks (int): Cantidad de archivos en el directorio que 
-            no coincidieron con el formato objetivo del analizador.
+        invalid_format_tracks (int): Cantidad de archivos en el directorio que no coincidieron con el formato objetivo del analizador.
         album_names (List[str]): Valores únicos detectados en la etiqueta de Álbum.
         artists (List[str]): Valores únicos detectados en la etiqueta de Artistas.
         album_artists (List[str]): Valores únicos detectados en la etiqueta de Album Artist.
-        tracks (List[T_Track]): Lista de objetos Pydantic con la metadata individual 
-            de cada canción, fuertemente tipada según el formato instanciado.
+        tracks (List[T_Track]): Lista de objetos Pydantic con la metadata individual de cada canción, fuertemente tipada según el formato instanciado.
     """
     total_tracks: int = 0
     invalid_format_tracks: int = 0
