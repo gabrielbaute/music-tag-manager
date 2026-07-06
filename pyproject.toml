@@ -1,0 +1,16 @@
+[project]
+name = "tag-manager"
+version = "0.1.0"
+description = "Una CLI mínima para edición de metadatos pensado para librerías en Navidrome."
+readme = "README.md"
+requires-python = ">=3.13"
+dependencies = [
+    "mutagen>=1.47.0",
+    "pydantic>=2.13.3",
+    "rich>=15.0.0",
+]
+
+[dependency-groups]
+dev = [
+    "bumpver>=2026.1132",
+]
