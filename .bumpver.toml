@@ -12,6 +12,6 @@ tag_scope = "global"
 "pyproject.toml" = [
     'version = "{version}"',
 ]
-"app/settings/app_settings.py" = [
+"app/settings/app_version.py" = [
     '__version__ = "{version}"',
 ]
