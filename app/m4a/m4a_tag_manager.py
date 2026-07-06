@@ -86,7 +86,7 @@ class M4ATagManager(BaseTagManager[MP4, M4ATagEnum, M4AAlbum]):
 
     def _overwrite_track_tag(
         self,
-        track_object: MP4,
+        track_obj: MP4,
         tag: M4ATagEnum,
         new_tag_value: Union[str, List[str]]
     ) -> Optional[List[str]]:
@@ -96,7 +96,7 @@ class M4ATagManager(BaseTagManager[MP4, M4ATagEnum, M4AAlbum]):
         Elimina cualquier remanente del metadato anterior en el átomo asignado e inyecta el nuevo valor provisto.
 
         Args:
-            track_object (MP4): Objeto MP4 de Mutagen.
+            track_obj (MP4): Objeto MP4 de Mutagen.
             tag (M4ATagEnum): Enum del tag que se va a sobreescribir.
             new_tag_value (Union[str, List[str]]): Nuevo valor único o lista de valores.
 
@@ -107,12 +107,12 @@ class M4ATagManager(BaseTagManager[MP4, M4ATagEnum, M4AAlbum]):
         try:
             wrapped_value: List[str] = [new_tag_value] if isinstance(new_tag_value, str) else new_tag_value
 
-            track_object[tag.value] = wrapped_value
-            self.logger.info(f"Aplicando sobreescritura {tag}: [{';'.join(wrapped_value)}] en {track_object.filename}")
+            track_obj[tag.value] = wrapped_value
+            self.logger.info(f"Aplicando sobreescritura {tag}: [{';'.join(wrapped_value)}] en {track_obj.filename}")
 
-            track_object.save()
+            track_obj.save()
 
-            return track_object.get(tag.value)
+            return track_obj.get(tag.value)
         except Exception as e:
-            self.logger.error(f"Error al sobreescribir en M4A [{track_object.filename}]: {e}")
+            self.logger.error(f"Error al sobreescribir en M4A [{track_obj.filename}]: {e}")
             return None
