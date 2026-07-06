@@ -2,15 +2,21 @@ import logging
 from abc import ABC, abstractmethod
 from enum import StrEnum
 from pathlib import Path
-from typing import Dict, List, TypeVar, Generic, Type, Union, Optional, Tuple
+from typing import Callable, Dict, List, TypeVar, Generic, Type, Union, Optional, Tuple
 
 from app.enums.format_enum import Format
 from app.core.base_analyzer import BaseTagAnalyzer
 from app.core.base_tags_schemas import BaseAlbum
+from app.schemas.edit_result_schemas import EditResult
+from app.enums.edit_status_enum import EditStatus
+from app.enums.item_type_enum import ItemType
 
 T_TrackObj = TypeVar('T_TrackObj')
 T_TagEnum = TypeVar('T_TagEnum', bound=StrEnum)
 T_Album = TypeVar('T_Album', bound=BaseAlbum)
+
+# Callback for edit progress: receives (track_filename, status, detail_message)
+EditProgressCallback = Callable[[str, EditStatus, str], None]
 
 
 class BaseTagManager(ABC, Generic[T_TrackObj, T_TagEnum, T_Album]):
@@ -209,59 +215,118 @@ class BaseTagManager(ABC, Generic[T_TrackObj, T_TagEnum, T_Album]):
             )
             return None
 
-    def swap_artist_album_with_artists(self, album_path: Path) -> T_Album:
+    def swap_artist_album_with_artists(
+        self,
+        album_path: Path,
+        progress_callback: Optional[EditProgressCallback] = None,
+    ) -> Tuple[T_Album, List[EditResult]]:
         """
-        Arregla el problema de los datos intercambiados entre campos de Artists y Album Artists para un album completo.
+        Arregla el problema de los datos intercambiados entre campos de Artists
+        y Album Artists para un album completo.
 
         Args:
             album_path (Path): Ruta del directorio del álbum.
+            progress_callback (Optional[EditProgressCallback]): Callback opcional
+                que recibe (nombre_archivo, estado, mensaje) por cada track procesado.
 
         Returns:
-            T_Album: Reporte actualizado del análisis del álbum.
+            Tuple[T_Album, List[EditResult]]: Reporte del álbum y lista de resultados
+                individuales por cada track editado.
         """
         track_objs: List[T_TrackObj] = self._collect_album_files(album_path=album_path)
+        edit_results: List[EditResult] = []
         count: int = 0
+
         for track in track_objs:
+            filename = Path(track.filename).name if hasattr(track, 'filename') else "unknown"
             new_data = self._swap_artist_album_with_artists_on_track(track=track)
             if new_data:
-                count = count + 1
+                count += 1
+                edit_results.append(EditResult(
+                    name=filename,
+                    item_type=ItemType.TRACK,
+                    status=EditStatus.UPDATED,
+                    message=f"Artists: {'; '.join(new_data[0])} | Album Artists: {'; '.join(new_data[1])}"
+                ))
+                if progress_callback:
+                    progress_callback(filename, EditStatus.UPDATED, "Artists y Album Artists intercambiados")
+            else:
+                edit_results.append(EditResult(
+                    name=filename,
+                    item_type=ItemType.TRACK,
+                    status=EditStatus.SKIPPED,
+                    message="No se requirió intercambio (datos ausentes o irrelevantes)"
+                ))
+                if progress_callback:
+                    progress_callback(filename, EditStatus.SKIPPED, "Sin cambios necesarios")
 
         self.logger.info(
             f"Artist Album y Artists actualizados en {count}/{len(track_objs)} archivos."
         )
-        return self.tag_analyzer.analyze_album(album_path=album_path)
+        album_report = self.tag_analyzer.analyze_album(album_path=album_path)
+        return album_report, edit_results
 
     def set_album_artist_to_an_album(
         self,
         artist_name: str,
-        album_path: Path
-    ) -> T_Album:
+        album_path: Path,
+        progress_callback: Optional[EditProgressCallback] = None,
+    ) -> Tuple[T_Album, List[EditResult]]:
         """
         Establece el campo Album Artist para todos los tracks de un álbum.
 
         Args:
             artist_name (str): Nombre a asignar a los tracks del álbum.
             album_path (Path): Path del álbum para cargar los tracks y editarlos.
+            progress_callback (Optional[EditProgressCallback]): Callback opcional
+                que recibe (nombre_archivo, estado, mensaje) por cada track procesado.
 
         Returns:
-            T_Album: Reporte actualizado del análisis del álbum.
+            Tuple[T_Album, List[EditResult]]: Reporte del álbum y lista de resultados
+                individuales por cada track editado.
         """
         track_objs: List[T_TrackObj] = self._collect_album_files(album_path=album_path)
+        edit_results: List[EditResult] = []
         count: int = 0
+
         for track in track_objs:
+            filename = Path(track.filename).name if hasattr(track, 'filename') else "unknown"
             edit: bool = self._overwrite_track_tag(
                 track_obj=track,
                 tag=self._tag_enum.ALBUM_ARTISTS,
                 new_tag_value=[artist_name]
             )
             if edit:
-                count = count + 1
+                count += 1
+                edit_results.append(EditResult(
+                    name=filename,
+                    item_type=ItemType.TRACK,
+                    status=EditStatus.UPDATED,
+                    message=f"Album Artist → {artist_name}"
+                ))
+                if progress_callback:
+                    progress_callback(filename, EditStatus.UPDATED, f"Album Artist → {artist_name}")
+            else:
+                edit_results.append(EditResult(
+                    name=filename,
+                    item_type=ItemType.TRACK,
+                    status=EditStatus.ERROR,
+                    message="Error al sobrescribir Album Artist"
+                ))
+                if progress_callback:
+                    progress_callback(filename, EditStatus.ERROR, "Error al sobrescribir")
+
         self.logger.info(
             f"Artist Album actualizado en {count}/{len(track_objs)} archivos."
         )
-        return self.tag_analyzer.analyze_album(album_path=album_path)
+        album_report = self.tag_analyzer.analyze_album(album_path=album_path)
+        return album_report, edit_results
 
-    def sanitize_album_artists(self, album_path: Path) -> T_Album:
+    def sanitize_album_artists(
+        self,
+        album_path: Path,
+        progress_callback: Optional[EditProgressCallback] = None,
+    ) -> Tuple[T_Album, List[EditResult]]:
         """
         Sanitiza el tag de artistas colaboradores en un álbum por lotes.
 
@@ -269,14 +334,19 @@ class BaseTagManager(ABC, Generic[T_TrackObj, T_TagEnum, T_Album]):
 
         Args:
             album_path (Path): Path del álbum a procesar.
+            progress_callback (Optional[EditProgressCallback]): Callback opcional
+                que recibe (nombre_archivo, estado, mensaje) por cada track procesado.
 
         Returns:
-            T_Album: Reporte actualizado del análisis del álbum post-sanitización.
+            Tuple[T_Album, List[EditResult]]: Reporte del álbum y lista de resultados
+                individuales por cada track procesado.
         """
         track_objs: List[T_TrackObj] = self._collect_album_files(album_path=album_path)
+        edit_results: List[EditResult] = []
         count: int = 0
 
         for track in track_objs:
+            filename = Path(track.filename).name if hasattr(track, 'filename') else "unknown"
             artists_field: Optional[List[str]] = self._read_track_tag(
                 track, self._tag_enum.ARTISTS
             )
@@ -290,29 +360,79 @@ class BaseTagManager(ABC, Generic[T_TrackObj, T_TagEnum, T_Album]):
                     )
                     if edit:
                         count += 1
+                        edit_results.append(EditResult(
+                            name=filename,
+                            item_type=ItemType.TRACK,
+                            status=EditStatus.UPDATED,
+                            message=f"Artistas sanitizados: {'; '.join(clean_field)}"
+                        ))
+                        if progress_callback:
+                            progress_callback(filename, EditStatus.UPDATED, "Artistas sanitizados")
+                    else:
+                        edit_results.append(EditResult(
+                            name=filename,
+                            item_type=ItemType.TRACK,
+                            status=EditStatus.ERROR,
+                            message="Error al sanitizar artistas"
+                        ))
+                        if progress_callback:
+                            progress_callback(filename, EditStatus.ERROR, "Error al sanitizar")
+                else:
+                    edit_results.append(EditResult(
+                        name=filename,
+                        item_type=ItemType.TRACK,
+                        status=EditStatus.SKIPPED,
+                        message="Datos de artistas ya normalizados"
+                    ))
+                    if progress_callback:
+                        progress_callback(filename, EditStatus.SKIPPED, "Ya normalizado")
+            else:
+                edit_results.append(EditResult(
+                    name=filename,
+                    item_type=ItemType.TRACK,
+                    status=EditStatus.SKIPPED,
+                    message="Sin datos de artistas"
+                ))
+                if progress_callback:
+                    progress_callback(filename, EditStatus.SKIPPED, "Sin datos de artistas")
 
         self.logger.info(
             f"Se procesaron y guardaron {count}/{len(track_objs)} archivos "
             f"en {album_path.name}."
         )
-        return self.tag_analyzer.analyze_album(album_path=album_path)
+        album_report = self.tag_analyzer.analyze_album(album_path=album_path)
+        return album_report, edit_results
 
-    def set_genre_to_album(self, album_path: Path, genres: List[str], replace: bool = True) -> T_Album:
+    def set_genre_to_album(
+        self,
+        album_path: Path,
+        genres: List[str],
+        replace: bool = True,
+        progress_callback: Optional[EditProgressCallback] = None,
+    ) -> Tuple[T_Album, List[EditResult]]:
         """
         Aplica un género o una lista de géneros uniformemente a un álbum.
 
         Args:
             album_path (Path): Path del álbum para editar.
             genres (List[str]): Lista de géneros musicales a establecer.
-            replace (bool): Si True (default), sobrescribe los géneros existentes usando `_overwrite_track_tag`. Si False, añade los géneros a los ya existentes usando `_edit_track_tag`.
+            replace (bool): Si True (default), sobrescribe los géneros existentes
+                usando `_overwrite_track_tag`. Si False, añade los géneros a los
+                ya existentes usando `_edit_track_tag`.
+            progress_callback (Optional[EditProgressCallback]): Callback opcional
+                que recibe (nombre_archivo, estado, mensaje) por cada track procesado.
 
         Returns:
-            T_Album: Reporte actualizado del análisis del álbum.
+            Tuple[T_Album, List[EditResult]]: Reporte del álbum y lista de resultados
+                individuales por cada track editado.
         """
         track_objs: List[T_TrackObj] = self._collect_album_files(album_path=album_path)
+        edit_results: List[EditResult] = []
         count: int = 0
+        action_label = "Sobrescritos" if replace else "Añadidos"
 
         for track in track_objs:
+            filename = Path(track.filename).name if hasattr(track, 'filename') else "unknown"
             if replace:
                 edit: bool = self._overwrite_track_tag(
                     track, self._tag_enum.GENRES, genres
@@ -323,36 +443,62 @@ class BaseTagManager(ABC, Generic[T_TrackObj, T_TagEnum, T_Album]):
                 )
             if edit:
                 count += 1
+                edit_results.append(EditResult(
+                    name=filename,
+                    item_type=ItemType.TRACK,
+                    status=EditStatus.UPDATED,
+                    message=f"{action_label}: {', '.join(genres)}"
+                ))
+                if progress_callback:
+                    progress_callback(filename, EditStatus.UPDATED, f"{action_label}: {', '.join(genres)}")
+            else:
+                edit_results.append(EditResult(
+                    name=filename,
+                    item_type=ItemType.TRACK,
+                    status=EditStatus.ERROR,
+                    message=f"Error al {'sobrescribir' if replace else 'añadir'} géneros"
+                ))
+                if progress_callback:
+                    progress_callback(filename, EditStatus.ERROR, "Error en la operación")
 
         action = "sobrescritos" if replace else "añadidos"
         self.logger.info(
             f"Géneros {action} en {count}/{len(track_objs)} archivos."
         )
-        return self.tag_analyzer.analyze_album(album_path=album_path)
+        album_report = self.tag_analyzer.analyze_album(album_path=album_path)
+        return album_report, edit_results
 
     def fix_field_on_album_tracks(
         self,
         album_path: Path,
         field: T_TagEnum,
-        new_value: List[str]
-    ) -> T_Album:
+        new_value: List[str],
+        progress_callback: Optional[EditProgressCallback] = None,
+    ) -> Tuple[T_Album, List[EditResult]]:
         """
         Aplica un valor unificado a un tag específico en todas las pistas de un álbum.
 
-        Permite realizar correcciones masivas y homogéneas sobre metadatos comunes a nivel de directorio (como el año, compositor o título del disco), sobrescribiendo el contenido previo.
+        Permite realizar correcciones masivas y homogéneas sobre metadatos comunes
+        a nivel de directorio (como el año, compositor o título del disco),
+        sobrescribiendo el contenido previo.
 
         Args:
             album_path (Path): Ruta del directorio del álbum a procesar.
             field (T_TagEnum): El tag que se va a corregir de forma genérica.
             new_value (List[str]): El nuevo vector de strings que se inyectará en el tag.
+            progress_callback (Optional[EditProgressCallback]): Callback opcional
+                que recibe (nombre_archivo, estado, mensaje) por cada track procesado.
 
         Returns:
-            T_Album: Reporte actualizado del diagnóstico del álbum tras la modificación.
+            Tuple[T_Album, List[EditResult]]: Reporte del álbum y lista de resultados
+                individuales por cada track editado.
         """
         track_objs: List[T_TrackObj] = self._collect_album_files(album_path=album_path)
+        edit_results: List[EditResult] = []
         count: int = 0
 
         for track in track_objs:
+            filename = Path(track.filename).name if hasattr(track, 'filename') else "unknown"
             update_status: Optional[List[str]] = self._overwrite_track_tag(
                 track_obj=track,
                 tag=field,
@@ -360,9 +506,27 @@ class BaseTagManager(ABC, Generic[T_TrackObj, T_TagEnum, T_Album]):
             )
             if update_status is not None:
                 count += 1
+                edit_results.append(EditResult(
+                    name=filename,
+                    item_type=ItemType.TRACK,
+                    status=EditStatus.UPDATED,
+                    message=f"{field.name}: {', '.join(new_value)}"
+                ))
+                if progress_callback:
+                    progress_callback(filename, EditStatus.UPDATED, f"{field.name}: {', '.join(new_value)}")
+            else:
+                edit_results.append(EditResult(
+                    name=filename,
+                    item_type=ItemType.TRACK,
+                    status=EditStatus.ERROR,
+                    message=f"Error al sobrescribir {field.name}"
+                ))
+                if progress_callback:
+                    progress_callback(filename, EditStatus.ERROR, f"Error al sobrescribir {field.name}")
 
         self.logger.info(
             f"Corrección genérica aplicada [{field.name}]: "
             f"Se actualizaron {count}/{len(track_objs)} archivos en '{album_path.name}'."
         )
-        return self.tag_analyzer.analyze_album(album_path=album_path)
+        album_report = self.tag_analyzer.analyze_album(album_path=album_path)
+        return album_report, edit_results
