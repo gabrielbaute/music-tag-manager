@@ -189,5 +189,47 @@ class AnalyzeCommand:
         tag_analyzer = self._get_analyzer()
         folders = tag_analyzer._map_album_folders()
         return folders
-        # Este método debe mostrar todos los paths de los discos para poder usar luego run_album_analisis, que requiere conocer el path.
-        pass
+
+def analyze_command(console: Console, args) -> None:
+    """
+    Enruta el comando analyze según los flags proporcionados.
+    """
+    try:
+        # Inferir --artist desde --album cuando no se proporciona explícitamente
+        artist_root = args.artist
+        if artist_root is None and args.album:
+            artist_root = str(Path(args.album).parent.parent)
+
+        if artist_root is None:
+            console.print(
+                "[bold red]Error:[/bold red] Debes especificar --artist "
+                "o proporcionar --album para deducir la ruta del artista."
+            )
+            return
+
+        cmd = AnalyzeCommand(audio_format=args.format, root_path=artist_root)
+
+        if args.resolve_albums:
+            paths = cmd.get_albums_paths()
+            if not paths:
+                console.print(
+                    "[yellow]No se encontraron subdirectorios (álbumes) "
+                    "en la ruta especificada.[/yellow]"
+                )
+                return
+            console.print(
+                f"[bold cyan]Álbumes detectados ({len(paths)}):[/bold cyan]\n"
+            )
+            for p in paths:
+                console.print(f"  [green]•[/green] {p}")
+            return
+
+        if args.album:
+            cmd.run_album_analysis(album_path=args.album, console=console)
+        else:
+            cmd.run_full_diagnostic(console=console)
+
+    except ValueError as e:
+        console.print(f"[bold red]Error:[/bold red] {e}")
+    except Exception as e:
+        console.print(f"\n[bold red]💥 Error crítico:[/bold red] {str(e)}")
