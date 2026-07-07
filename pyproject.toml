@@ -10,6 +10,9 @@ dependencies = [
     "rich>=15.0.0",
 ]
 
+[project.scripts]
+mtm = "mtm.main:main"
+
 [dependency-groups]
 dev = [
     "bumpver>=2026.1132",
