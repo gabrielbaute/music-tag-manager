@@ -1,1 +1,0 @@
-from app.settings.log_settings import GenreManagerLog
