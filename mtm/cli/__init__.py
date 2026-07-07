@@ -1,0 +1,1 @@
+from mtm.cli.main import main

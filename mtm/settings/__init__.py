@@ -1,0 +1,1 @@
+from mtm.settings.log_settings import GenreManagerLog
