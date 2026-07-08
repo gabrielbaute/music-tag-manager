@@ -98,7 +98,7 @@ class MP3TagManager(BaseTagManager[MP3, MP3TagEnum, MP3Album]):
 
     def _overwrite_track_tag(
         self,
-        track_object: MP3,
+        track_obj: MP3,
         tag: MP3TagEnum,
         new_tag_value: Union[str, List[str]]
     ) -> Optional[List[str]]:
@@ -121,15 +121,15 @@ class MP3TagManager(BaseTagManager[MP3, MP3TagEnum, MP3Album]):
 
             frame_class = MP3TagEnum.get_frame(tag)
             if frame_class:
-                track_object.tags[tag.value] = frame_class(encoding=3, text=wrapped_value)
+                track_obj.tags[tag.value] = frame_class(encoding=3, text=wrapped_value)
             else:
                 self.logger.error(f"No hay una clase de marco registrada para {tag.value}")
                 return None
 
-            track_object.save()
+            track_obj.save()
 
-            result_frame = track_object.tags.get(tag.value)
+            result_frame = track_obj.tags.get(tag.value)
             return list(result_frame.text) if result_frame else wrapped_value
         except Exception as e:
-            self.logger.error(f"Error al sobreescribir en MP3 [{track_object.filename}]: {e}")
+            self.logger.error(f"Error al sobreescribir en MP3 [{track_obj.filename}]: {e}")
             return None
