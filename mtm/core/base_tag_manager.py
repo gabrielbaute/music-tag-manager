@@ -345,7 +345,7 @@ class BaseTagManager(ABC, Generic[T_TrackObj, T_TagEnum, T_Album]):
                 clean_field: List[str] = self._clean_and_split(artists_field[0])
 
                 if clean_field != artists_field:
-                    edit: bool = self._edit_track_tag(
+                    edit: bool = self._overwrite_track_tag(
                         track, self._tag_enum.ARTISTS, clean_field
                     )
                     if edit:
