@@ -41,7 +41,7 @@ class ConsoleFormatResponse:
         # Formato-específico: ID3 versions (MP3Album)
         id3_versions = getattr(album, 'id3_versions_present', None)
         if id3_versions:
-            header.add_row("ID3 versions", ", ".join(v.value for v in id3_versions))
+            header.add_row("ID3 versions", ", ".join(str(v.value) for v in id3_versions))
 
         return header
 
