@@ -17,3 +17,6 @@ mtm = "mtm.main:main"
 dev = [
     "bumpver>=2026.1132",
 ]
+
+[tool.setuptools]
+packages = ["mtm"]
