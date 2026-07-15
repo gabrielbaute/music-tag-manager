@@ -184,6 +184,10 @@ def create_parser() -> ArgumentParser:
         "-f", "--format", type=str, required=True, choices=["mp3", "m4a"],
         help="Formato de los archivos de audio (mp3 o m4a)."
     )
+    sanitize_parser.add_argument(
+        "--agressive", action="store_true", default=False,
+        help="Incluye en el patron de separación de artistas los caracteres , y &."
+    )
 
     # -------------------------------------------
     # Subcommand: fix-field
