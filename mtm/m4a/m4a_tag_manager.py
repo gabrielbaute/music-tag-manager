@@ -59,6 +59,8 @@ class M4ATagManager(BaseTagManager[MP4, M4ATagEnum, M4AAlbum]):
 
         Garantiza que no se elimine la metadata previa del átomo y evita la duplicación de elementos dentro de la lista de metadatos.
 
+        Nota: Los átomos de texto en MP4 solo almacenan un único valor. Si se añademúltiples valores, se unen con "; " para preservarlos todos.
+
         Args:
             track_obj (MP4): Instancia del objeto Mutagen a modificar.
             tag (M4ATagEnum): El átomo/etiqueta que se va a editar.
@@ -75,6 +77,14 @@ class M4ATagManager(BaseTagManager[MP4, M4ATagEnum, M4AAlbum]):
             for val in new_values:
                 if val not in current_values:
                     current_values.append(val)
+
+            # Los átomos de texto estándar de MP4 almacenan un solo string;
+            # unimos la lista para no perder datos en la serialización
+            if tag.value == M4ATagEnum.ARTISTS:
+                joined_value: str = "; ".join(current_values)
+                track_obj[tag.value] = [joined_value]
+                track_obj.save()
+                return True
 
             track_obj[tag.value] = current_values
             track_obj.save()
@@ -95,6 +105,8 @@ class M4ATagManager(BaseTagManager[MP4, M4ATagEnum, M4AAlbum]):
 
         Elimina cualquier remanente del metadato anterior en el átomo asignado e inyecta el nuevo valor provisto.
 
+        Nota: Los átomos de texto en MP4 solo almacenan un único valor. Si se proporciona una lista con múltiples elementos, se unen con "; " para preservar todos los valores.
+
         Args:
             track_obj (MP4): Objeto MP4 de Mutagen.
             tag (M4ATagEnum): Enum del tag que se va a sobreescribir.
@@ -107,7 +119,16 @@ class M4ATagManager(BaseTagManager[MP4, M4ATagEnum, M4AAlbum]):
         try:
             wrapped_value: List[str] = [new_tag_value] if isinstance(new_tag_value, str) else new_tag_value
 
-            track_obj[tag.value] = wrapped_value
+            # Los átomos de texto estándar de MP4 almacenan un solo string;
+            # unimos la lista para no perder datos en la serialización
+            joined_value: str = "; ".join(wrapped_value)
+            if tag.value == M4ATagEnum.ARTISTS:
+                track_obj[tag.value] = [joined_value]
+                self.logger.info(f"Aplicando sobreescritura {tag}: [{joined_value}] en {track_obj.filename}")
+                track_obj.save()
+                return track_obj.get(tag.value)
+            
+            track_obj[tag.value] = [wrapped_value]
             self.logger.info(f"Aplicando sobreescritura {tag}: [{';'.join(wrapped_value)}] en {track_obj.filename}")
 
             track_obj.save()
