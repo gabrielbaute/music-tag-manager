@@ -18,7 +18,7 @@ class ConsoleFormatResponse:
         if value is None:
             return "[dim]—[/dim]"
         if isinstance(value, list):
-            return ", ".join(str(v) for v in value) if value else "[dim]—[/dim]"
+            return "; ".join(str(v) for v in value) if value else "[dim]—[/dim]"
         if isinstance(value, tuple):
             num, total = value
             return f"{num or '?'}/{total or '?'}"
