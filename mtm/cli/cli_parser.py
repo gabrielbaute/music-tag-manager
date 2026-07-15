@@ -57,7 +57,7 @@ def create_parser() -> ArgumentParser:
         help="Ruta base del artista que contiene los subdirectorios de álbumes. Opcional si se usa --album (se deduce de la ruta del álbum)."
     )
     analyze_parser.add_argument(
-        "-d", "--album", type=str, required=True,
+        "-d", "--album", type=str, default=None,
         help="Ruta del directorio del álbum a analizar (si se omite, analiza toda la discografía)."
     )
     analyze_parser.add_argument(
@@ -89,7 +89,7 @@ def create_parser() -> ArgumentParser:
         help="Ruta base del artista. Opcional si se usa --album (se deduce de la ruta)."
     )
     genres_parser.add_argument(
-        "-d", "--album", type=str, required=True,
+        "-d", "--album", type=str, default=None,
         help="Ruta del directorio del álbum a editar."
     )
     genres_parser.add_argument(
@@ -123,7 +123,7 @@ def create_parser() -> ArgumentParser:
         help="Ruta base del artista. Opcional si se usa --album (se deduce de la ruta)."
     )
     swap_parser.add_argument(
-        "-d", "--album", type=str, required=True,
+        "-d", "--album", type=str, default=None,
         help="Ruta del directorio del álbum a corregir."
     )
     swap_parser.add_argument(
@@ -148,7 +148,7 @@ def create_parser() -> ArgumentParser:
         help="Ruta base del artista. Opcional si se usa --album (se deduce de la ruta)."
     )
     force_parser.add_argument(
-        "-d", "--album", type=str, required=True,
+        "-d", "--album", type=str,default=None,
         help="Ruta del directorio del álbum a editar."
     )
     force_parser.add_argument(
@@ -177,12 +177,16 @@ def create_parser() -> ArgumentParser:
         help="Ruta base del artista. Opcional si se usa --album (se deduce de la ruta)."
     )
     sanitize_parser.add_argument(
-        "-d", "--album", type=str, required=True,
+        "-d", "--album", type=str, default=None,
         help="Ruta del directorio del álbum a sanitizar."
     )
     sanitize_parser.add_argument(
         "-f", "--format", type=str, required=True, choices=["mp3", "m4a"],
         help="Formato de los archivos de audio (mp3 o m4a)."
+    )
+    sanitize_parser.add_argument(
+        "--agressive", action="store_true", default=False,
+        help="Incluye en el patron de separación de artistas los caracteres , y &."
     )
 
     # -------------------------------------------
