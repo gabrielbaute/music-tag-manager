@@ -70,11 +70,12 @@ class SanitizeCommand:
             )
         return manager_class(artist_root=self._root_path)
 
-    def run(self, album_path: str, console: Console) -> None:
+    def run(self, album_path: str, agressive: bool, console: Console) -> None:
         """Ejecuta la sanitización de artistas en el álbum.
 
         Args:
             album_path (str): Ruta del directorio del álbum.
+            agressive (bool): Flag para incluir comas , y & en el patrón de limpieza.
             console (Console): Consola de Rich para la salida.
         """
         album_path_obj = Path(album_path)
@@ -97,7 +98,7 @@ class SanitizeCommand:
                 total=None,
             )
             album_report, edit_results = manager.sanitize_album_artists(
-                album_path=album_path_obj,
+                album_path=album_path_obj, aggressive=agressive
             )
             progress.update(task, completed=True, visible=False)
 
@@ -120,6 +121,7 @@ def sanitize_command(console: Console, args) -> None:
 
         cmd.run(
             album_path=args.album,
+            agressive=args.agressive,
             console=console,
         )
 
