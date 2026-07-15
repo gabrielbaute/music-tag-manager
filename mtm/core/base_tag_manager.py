@@ -132,20 +132,31 @@ class BaseTagManager(ABC, Generic[T_TrackObj, T_TagEnum, T_Album]):
         pass
 
     # ── Shared concrete logic ──
-    def _clean_and_split(self, field_value: str) -> List[str]:
+    def _clean_and_split(self, field_value: str, aggressive: bool = False) -> List[str]:
         """
         Sanitiza cadenas separando colaboradores por delimitadores comunes.
 
         Args:
             field_value (str): Cadena de texto original extraída del tag.
+            aggressive (bool): Si es True, incluye delimitadores adicionales (coma y ampersand) que normalmente se respetan en nombres artísticos.
 
         Returns:
             List[str]: Lista de elementos limpios y separados.
+
+        Raises:
+            TypeError: Si field_value no es un string.
         """
+        if not isinstance(field_value, str):
+            raise TypeError(f"Se esperaba 'str', se recibió '{type(field_value).__name__}'")
+
         if not field_value:
             return []
 
-        delimiters: List[str] = [";", "/", " feat. ", " ft. ", " & "]
+        delimiters: List[str] = [";", "/", " feat. ", " ft. "]
+
+        if aggressive:
+            delimiters.extend([",", "&"])
+
         normalized: str = field_value
 
         for delimiter in delimiters:
@@ -178,8 +189,8 @@ class BaseTagManager(ABC, Generic[T_TrackObj, T_TagEnum, T_Album]):
         if not raw_artists_str and not raw_album_artists_str:
             return None
 
-        all_potential_album_artists: List[str] = self._clean_and_split(raw_artists_str)
-        new_artists: List[str] = self._clean_and_split(raw_album_artists_str)
+        all_potential_album_artists: List[str] = self._clean_and_split(field_value=raw_artists_str, aggressive=False)
+        new_artists: List[str] = self._clean_and_split(field_value=raw_album_artists_str, aggressive=False)
 
         new_album_artists: List[str] = []
         if all_potential_album_artists:
@@ -317,6 +328,7 @@ class BaseTagManager(ABC, Generic[T_TrackObj, T_TagEnum, T_Album]):
     def sanitize_album_artists(
         self,
         album_path: Path,
+        aggressive: bool = False,
         progress_callback: Optional[EditProgressCallback] = None,
     ) -> Tuple[T_Album, List[EditResult]]:
         """
@@ -342,7 +354,7 @@ class BaseTagManager(ABC, Generic[T_TrackObj, T_TagEnum, T_Album]):
             )
 
             if artists_field and len(artists_field) > 0:
-                clean_field: List[str] = self._clean_and_split(artists_field[0])
+                clean_field: List[str] = self._clean_and_split(field_value=artists_field[0], aggressive=aggressive)
 
                 if clean_field != artists_field:
                     edit: bool = self._overwrite_track_tag(
@@ -406,15 +418,11 @@ class BaseTagManager(ABC, Generic[T_TrackObj, T_TagEnum, T_Album]):
         Args:
             album_path (Path): Path del álbum para editar.
             genres (List[str]): Lista de géneros musicales a establecer.
-            replace (bool): Si True (default), sobrescribe los géneros existentes
-                usando `_overwrite_track_tag`. Si False, añade los géneros a los
-                ya existentes usando `_edit_track_tag`.
-            progress_callback (Optional[EditProgressCallback]): Callback opcional
-                que recibe (nombre_archivo, estado, mensaje) por cada track procesado.
+            replace (bool): Si True (default), sobrescribe los géneros existentes usando `_overwrite_track_tag`. Si False, añade los géneros a los ya existentes usando `_edit_track_tag`.
+            progress_callback (Optional[EditProgressCallback]): Callback opcional que recibe (nombre_archivo, estado, mensaje) por cada track procesado.
 
         Returns:
-            Tuple[T_Album, List[EditResult]]: Reporte del álbum y lista de resultados
-                individuales por cada track editado.
+            Tuple[T_Album, List[EditResult]]: Reporte del álbum y lista de resultados individuales por cada track editado.
         """
         track_objs: List[T_TrackObj] = self._collect_album_files(album_path=album_path)
         edit_results: List[EditResult] = []
